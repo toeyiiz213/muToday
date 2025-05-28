@@ -1,1 +1,1 @@
-%pip install fastapi pydantic google-generativeai httpx uvicorn
+fastapi pydantic google-generativeai httpx uvicorn
