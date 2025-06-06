@@ -10,7 +10,7 @@ try:
     )
     print("After Connect")
     cursor = connection.cursor()
-    cursor.execute("SELECT current_date()")
+    cursor.execute("SELECT 1")
     query_result = cursor.fetchall()
     print("After Query")
     print(query_result)
@@ -20,3 +20,4 @@ try:
 
 except Exception as e:
     print('failed:', e)
+        
