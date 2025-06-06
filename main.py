@@ -5,14 +5,16 @@ from google.genai import types
 from fastapi.responses import StreamingResponse
 import difflib
 import httpx
+import os
+from databricks import sql
 
-# test2
 app = FastAPI(
     title="Dream Predict",
     description="ทำนายฝัน Gemini",
     version="1.0"
 )
 
+# uvicorn main:app --reload
 # client = genai.Client(api_key="AIzaSyCNKZqGKhFA9QsIEpl8pMT582TAkAHSB7M")
 
 class DreamRequest(BaseModel):
@@ -26,79 +28,184 @@ def is_similar(a: str, b: str) -> bool:
 @app.post("/dreamPredict", summary="แปลงความฝันด้วยโหาราศาสตร์จีนและไทย", tags=["MuToday"])
 async def dream_predict(request: DreamRequest):
 
-    async with httpx.AsyncClient() as client:
-        api_response = await client.get(
-            "https://stg-admin-api-gateway.mutoday.com/api/v1/form/dream",
-            params={"dream": request.dream},
-            headers={"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ODFiMjU1MGQyZGYwMDM3YTQ5NDNlOTgiLCJleHAiOjE3NzgxNDU1NjYsInVzZXJJZCI6IjY4MWIyNTUwZDJkZjAwMzdhNDk0M2U5OCIsImlzQWRtaW4iOmZhbHNlfQ.IdEDUVVp8wfHtzUvlPJZaTtJmNnSaLMOXARUW6tJsZo"}
-        )
-
-    raw_data = api_response.json().get("data", [])
-    filtered_data = []
-    countData = 0
-    promptText = ""
-    for item in raw_data:
-        name = item.get("name", "").strip()
-        if is_similar(request.dream, name):
-            filtered_data.append(item)
-            ++countData
-
-    # สร้างข้อความสำหรับ prompt
-    interpretations = ""
-    for item in filtered_data:
-        name = item.get("name", "").strip()
-        description = item.get("description", "").strip()
-        number = item.get("number", "").strip()
-        interpretations += f"\n\nชื่อความฝัน: {name}\nคำอธิบาย: {description}\nเลขนำโชค: {number}"
-
-
-    if not interpretations:
-        promptText = f"""
-                คุณคือนักเขียนที่มีความสามารถในการปรับข้อความให้น่าอ่าน เป็นกันเอง และสื่อสารอย่างเข้าใจง่าย
-                กรุณานำข้อมูลเกี่ยวกับความฝันด้านล่างนี้มาช่วยเรียบเรียงใหม่ให้อ่านแล้วดูเป็นธรรมชาติ เหมาะกับการเผยแพร่ต่อสาธารณะ เช่น บทความ หรือโพสต์บนโซเชียลมีเดีย
-                
-                - หลีกเลี่ยงการใช้ภาษาที่ยากหรือเป็นทางการเกินไป
-                - ช่่วยตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย
-                - แสดงเลขนำโชคที่เกี่ยวข้อง
-                - เน้นการสื่อสารที่เป็นเชิงบวก อบอุ่น และน่าเชื่อถือ
-                
-                ข้อมูลความฝันที่ได้รับอยู่ด้านล่าง:
-                {request.dream}
-                
-        """
-    else:
-        promptText = f"""
-                คุณคือนักเขียนที่มีความสามารถในการเรียบเรียงข้อมูลให้อ่านง่าย สื่อสารชัดเจน และเป็นกันเอง
-                กรุณานำข้อมูลเกี่ยวกับความฝันด้านล่างนี้มาช่วยเรียบเรียงใหม่ให้อ่านแล้วดูเป็นธรรมชาติ เหมาะกับการเผยแพร่ต่อสาธารณะ เช่น บทความ หรือโพสต์บนโซเชียลมีเดีย
-
-                - หลีกเลี่ยงการใช้ภาษาที่ยากหรือเป็นทางการเกินไป
-                - สามารถจัดกลุ่มข้อมูลหรือเขียนใหม่ให้เข้าใจง่ายขึ้นได้โดยคัดเฉพาะชื่อความฝันที่เกี่ยวข้องกับความฝันนี้ '{request.dream}'
-                - ไม่ต้องแสดงสัตว์อื่นๆ ในฝันที่ไม่เกี่ยวข้อง
-                - ไม่จำเป็นต้องแปลตรงตัว แต่ให้คงสาระสำคัญไว้
-                - เน้นการสื่อสารที่เป็นเชิงบวก อบอุ่น และน่าเชื่อถือ
-
-                ข้อมูลความฝันที่ได้รับอยู่ด้านล่าง:
-                {interpretations}
-                และหาก {countData} ไม่ใช่ 1 ให้ถามเพื่อเพิ่มรายละเอียดของความฝันเพิ่มเติม
-        """
-
 
     client = genai.Client(api_key="AIzaSyCNKZqGKhFA9QsIEpl8pMT582TAkAHSB7M")
     response = client.models.generate_content_stream(
         model="gemini-2.0-flash",
         config=types.GenerateContentConfig(
-            system_instruction=promptText
+            system_instruction=f"""ช่วยแก้ไขคำภาษาไทยในถูกต้อง {request.dream} แล้วแสดงแค่ข้อความที่ถูกปรับใหม่เท่านั้น"""
         ),
-        contents = ["กรุณาเรียบเรียงข้อมูลข้างต้นให้อ่านง่ายและน่าสนใจสำหรับผู้อ่านทั่วไป"]
+        contents = ["คุณคือผู้ช่วยที่เชี่ยวชาญในการแก้คำผิดในภาษาไทย"]
+        # ["กรุณาเรียบเรียงข้อมูลข้างต้นให้อ่านง่ายและน่าสนใจสำหรับผู้อ่านทั่วไป"]
     )
-    result = ""
+
     def event_stream():
+        result = ''
         for chunk in response:
             if chunk.text:
-                yield f"{chunk.text}"
-            # result += chunk.text
-    # return {"response": result}
-    return StreamingResponse(event_stream(),media_type="text/event-stream")
+                result+=chunk.text
+                # yield f"{chunk.text}"
+        return result
+
+    dreamText = event_stream()
+
+    # return dreamText
+
+    connection = sql.connect(
+        server_hostname = "886789292378781.1.gcp.databricks.com",
+        http_path       = "/sql/1.0/warehouses/9a6582c8c1fe8f71",
+        access_token    = "dapideaba78614065a0d648dfc2bf4185f0e"
+    )
+
+    connection = databricks.sql.connect(
+        server_hostname="886789292378781.1.gcp.databricks.com",
+        http_path="/sql/1.0/warehouses/9a6582c8c1fe8f71",
+        access_token="dapie20a5689668815dc5b6f60ff21dcf233"
+    )
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT current_date()")
+        query_result = cursor.fetchall()
+        # แปลงผลลัพธ์เป็น list ของ string
+        query_result_str = [str(row) for row in query_result]
+
+        return {
+            "corrected_dream": result_text,
+            "databricks_query_result": query_result_str
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+    finally:
+        cursor.close()
+        connection.close()
+    #
+    # cursor = connection.cursor()
+    # cursor.execute("SELECT current_date()")
+    # rows = cursor.fetchall()
+    # connection.close()
+    #
+    # # คืนค่าคำ keyword ทั้งหมดในรูปแบบ list
+    # return [row[0] for row in rows if row[0]]
+
+    # serverHost = '886789292378781.1.gcp.databricks.com'
+    # path = '/sql/1.0/warehouses/9a6582c8c1fe8f71'
+    # token = 'dapideaba78614065a0d648dfc2bf4185f0e'
+    #
+    # connection = connect(
+    #     server_hostname = serverHost,  # เช่น abc-xyz.cloud.databricks.com
+    #     http_path       = path,  # จาก SQL Warehouse
+    #     access_token    = token  # จาก user settings
+    # )
+    #
+    # cursor = connection.cursor()
+    #
+    # cursor.execute("SELECT * FROM main.mutoday.tumnaifun")
+    # result = cursor.fetchall()
+    #
+    # return result
+
+    # return StreamingResponse(event_stream(),media_type="text/event-stream")
+
+    # async with httpx.AsyncClient() as client:
+    #     api_response = await client.get(
+    #         "https://stg-admin-api-gateway.mutoday.com/api/v1/form/dream",
+    #         params={"dream": request.dream},
+    #         headers={"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ODFiMjU1MGQyZGYwMDM3YTQ5NDNlOTgiLCJleHAiOjE3NzgxNDU1NjYsInVzZXJJZCI6IjY4MWIyNTUwZDJkZjAwMzdhNDk0M2U5OCIsImlzQWRtaW4iOmZhbHNlfQ.IdEDUVVp8wfHtzUvlPJZaTtJmNnSaLMOXARUW6tJsZo"}
+    #     )
+    #
+    # raw_data = api_response.json().get("data", [])
+    # filtered_data = []
+    # countData = 0
+    # promptText = ""
+    # for item in raw_data:
+    #     name = item.get("name", "").strip()
+    #     if is_similar(request.dream, name):
+    #         filtered_data.append(item)
+    #         ++countData
+    #
+    # # สร้างข้อความสำหรับ prompt
+    # interpretations = ""
+    # for item in filtered_data:
+    #     name = item.get("name", "").strip()
+    #     description = item.get("description", "").strip()
+    #     number = item.get("number", "").strip()
+    #     interpretations += f"\n\nชื่อความฝัน: {name}\nคำอธิบาย: {description}\nเลขนำโชค: {number}"
+    #
+    #
+    # if not interpretations:
+    #     promptText = f"""
+    #             คุณคือนักเขียนที่มีความสามารถในการปรับข้อความให้น่าอ่าน เป็นกันเอง และสื่อสารอย่างเข้าใจง่าย
+    #             กรุณานำข้อมูลเกี่ยวกับความฝันด้านล่างนี้มาช่วยเรียบเรียงใหม่ให้อ่านแล้วดูเป็นธรรมชาติ เหมาะกับการเผยแพร่ต่อสาธารณะ เช่น บทความ หรือโพสต์บนโซเชียลมีเดีย
+    #
+    #             - หลีกเลี่ยงการใช้ภาษาที่ยากหรือเป็นทางการเกินไป
+    #             - ช่่วยตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย
+    #             - แสดงเลขนำโชคที่เกี่ยวข้อง
+    #             - เน้นการสื่อสารที่เป็นเชิงบวก อบอุ่น และน่าเชื่อถือ
+    #             - แต่ละหัวข้อความฝันควรถูกแยกเป็นรายการ (เช่น "ฝันเห็นงูบินได้" → งู, บิน)
+    #             - ให้ทำนายโดยแยกหัวข้อตามรายการของแต่ละหัวข้อที่ถูกแยก
+    #             - ส่งคืนคำตอบในรูปแบบ JSON เท่านั้น โดยใช้โครงสร้างดังนี้:
+    #             [
+    #               {{
+    #                 "หัวข้อความฝัน": "<สรุปสั้นๆ เช่น 'งูบินได้'>",
+    #                 "คีย์เวิร์ด": ["<งู>", "<บิน>"],
+    #                 "คำทำนาย": "<ตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย คำทำนายที่สื่อสารเชิงบวก เข้าใจง่าย>",
+    #                 "เลขนำโชค": ["<เลข1>", "<เลข2>", "..."]
+    #               }},
+    #               ...
+    #             ]
+    #
+    #             ข้อมูลความฝันที่ได้รับอยู่ด้านล่าง:
+    #             {request.dream}
+    #
+    #     """
+    # else:
+    #     promptText = f"""
+    #             คุณคือนักเขียนที่มีความสามารถในการปรับข้อความให้น่าอ่าน เป็นกันเอง และสื่อสารอย่างเข้าใจง่าย
+    #             กรุณานำข้อมูลเกี่ยวกับความฝันด้านล่างนี้มาช่วยเรียบเรียงใหม่ให้อ่านแล้วดูเป็นธรรมชาติ เหมาะกับการเผยแพร่ต่อสาธารณะ เช่น บทความ หรือโพสต์บนโซเชียลมีเดีย
+    #
+    #             - หลีกเลี่ยงการใช้ภาษาที่ยากหรือเป็นทางการเกินไป
+    #             - ช่่วยตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย
+    #             - แสดงเลขนำโชคที่เกี่ยวข้อง
+    #             - เน้นการสื่อสารที่เป็นเชิงบวก อบอุ่น และน่าเชื่อถือ
+    #             - แต่ละหัวข้อความฝันควรถูกแยกเป็นรายการ (เช่น "ฝันเห็นงูบินได้" → งู, บิน)
+    #             - ให้ทำนายโดยแยกหัวข้อตามรายการของแต่ละหัวข้อที่ถูกแยก
+    #             - ส่งคืนคำตอบในรูปแบบ JSON เท่านั้น โดยใช้โครงสร้างดังนี้:
+    #             [
+    #               {{
+    #                 "หัวข้อความฝัน": "<สรุปสั้นๆ เช่น 'งูบินได้'>",
+    #                 "คีย์เวิร์ด": ["<งู>", "<บิน>"],
+    #                 "คำทำนาย": "<ตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย คำทำนายที่สื่อสารเชิงบวก เข้าใจง่าย>",
+    #                 "เลขนำโชค": ["<เลข1>", "<เลข2>", "..."]
+    #               }},
+    #               ...
+    #             ]
+    #
+    #             ข้อมูลความฝันที่ได้รับอยู่ด้านล่าง:
+    #             {request.dream}
+    #
+    #     """
+    #
+    #
+    # client = genai.Client(api_key="AIzaSyCNKZqGKhFA9QsIEpl8pMT582TAkAHSB7M")
+    # response = client.models.generate_content_stream(
+    #     model="gemini-2.0-flash",
+    #     config=types.GenerateContentConfig(
+    #         system_instruction=promptText
+    #     ),
+    #     contents = [""]
+    #     # ["กรุณาเรียบเรียงข้อมูลข้างต้นให้อ่านง่ายและน่าสนใจสำหรับผู้อ่านทั่วไป"]
+    # )
+    # result = ""
+    # def event_stream():
+    #     for chunk in response:
+    #         if chunk.text:
+    #             yield f"{chunk.text}"
+    #         # result += chunk.text
+    # # return {"response": result}
+    # return StreamingResponse(event_stream(),media_type="text/event-stream")
 
 # ช่่วยตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย
 #             และให้อธิบายในเชิงบวกและใช้ข้อความที่สุภาพเท่านั้น

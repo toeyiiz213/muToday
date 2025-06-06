@@ -1,1 +1,9 @@
-fastapi pydantic google-generativeai httpx uvicorn
+fastapi
+pydantic
+google-genai
+httpx
+uvicorn
+databricks-sql-connector
+databricks-connect
+databricks-sdk
+pyarrow
