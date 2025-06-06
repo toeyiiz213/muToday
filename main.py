@@ -50,7 +50,7 @@ async def dream_predict(request: DreamRequest):
     dreamText = event_stream()
 
     # return dreamText
-    
+
     acc = 'dapideaba78614065a0d648dfc2bf4185f0e'
 
     connection = sql.connect(
@@ -85,23 +85,6 @@ async def dream_predict(request: DreamRequest):
     #
     # # คืนค่าคำ keyword ทั้งหมดในรูปแบบ list
     # return [row[0] for row in rows if row[0]]
-
-    # serverHost = '886789292378781.1.gcp.databricks.com'
-    # path = '/sql/1.0/warehouses/9a6582c8c1fe8f71'
-    # token = 'dapideaba78614065a0d648dfc2bf4185f0e'
-    #
-    # connection = connect(
-    #     server_hostname = serverHost,  # เช่น abc-xyz.cloud.databricks.com
-    #     http_path       = path,  # จาก SQL Warehouse
-    #     access_token    = token  # จาก user settings
-    # )
-    #
-    # cursor = connection.cursor()
-    #
-    # cursor.execute("SELECT * FROM main.mutoday.tumnaifun")
-    # result = cursor.fetchall()
-    #
-    # return result
 
     # return StreamingResponse(event_stream(),media_type="text/event-stream")
 
