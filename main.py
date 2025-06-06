@@ -5,16 +5,14 @@ from google.genai import types
 from fastapi.responses import StreamingResponse
 import difflib
 import httpx
-import os
-from databricks import sql
 
+# test2
 app = FastAPI(
     title="Dream Predict",
     description="ทำนายฝัน Gemini",
     version="1.0"
 )
 
-# uvicorn main:app --reload
 # client = genai.Client(api_key="AIzaSyCNKZqGKhFA9QsIEpl8pMT582TAkAHSB7M")
 
 class DreamRequest(BaseModel):
@@ -28,137 +26,79 @@ def is_similar(a: str, b: str) -> bool:
 @app.post("/dreamPredict", summary="แปลงความฝันด้วยโหาราศาสตร์จีนและไทย", tags=["MuToday"])
 async def dream_predict(request: DreamRequest):
 
+    async with httpx.AsyncClient() as client:
+        api_response = await client.get(
+            "https://stg-admin-api-gateway.mutoday.com/api/v1/form/dream",
+            params={"dream": request.dream},
+            headers={"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ODFiMjU1MGQyZGYwMDM3YTQ5NDNlOTgiLCJleHAiOjE3NzgxNDU1NjYsInVzZXJJZCI6IjY4MWIyNTUwZDJkZjAwMzdhNDk0M2U5OCIsImlzQWRtaW4iOmZhbHNlfQ.IdEDUVVp8wfHtzUvlPJZaTtJmNnSaLMOXARUW6tJsZo"}
+        )
+
+    raw_data = api_response.json().get("data", [])
+    filtered_data = []
+    countData = 0
+    promptText = ""
+    for item in raw_data:
+        name = item.get("name", "").strip()
+        if is_similar(request.dream, name):
+            filtered_data.append(item)
+            ++countData
+
+    # สร้างข้อความสำหรับ prompt
+    interpretations = ""
+    for item in filtered_data:
+        name = item.get("name", "").strip()
+        description = item.get("description", "").strip()
+        number = item.get("number", "").strip()
+        interpretations += f"\n\nชื่อความฝัน: {name}\nคำอธิบาย: {description}\nเลขนำโชค: {number}"
+
+
+    if not interpretations:
+        promptText = f"""
+                คุณคือนักเขียนที่มีความสามารถในการปรับข้อความให้น่าอ่าน เป็นกันเอง และสื่อสารอย่างเข้าใจง่าย
+                กรุณานำข้อมูลเกี่ยวกับความฝันด้านล่างนี้มาช่วยเรียบเรียงใหม่ให้อ่านแล้วดูเป็นธรรมชาติ เหมาะกับการเผยแพร่ต่อสาธารณะ เช่น บทความ หรือโพสต์บนโซเชียลมีเดีย
+                
+                - หลีกเลี่ยงการใช้ภาษาที่ยากหรือเป็นทางการเกินไป
+                - ช่่วยตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย
+                - แสดงเลขนำโชคที่เกี่ยวข้อง
+                - เน้นการสื่อสารที่เป็นเชิงบวก อบอุ่น และน่าเชื่อถือ
+                
+                ข้อมูลความฝันที่ได้รับอยู่ด้านล่าง:
+                {request.dream}
+                
+        """
+    else:
+        promptText = f"""
+                คุณคือนักเขียนที่มีความสามารถในการเรียบเรียงข้อมูลให้อ่านง่าย สื่อสารชัดเจน และเป็นกันเอง
+                กรุณานำข้อมูลเกี่ยวกับความฝันด้านล่างนี้มาช่วยเรียบเรียงใหม่ให้อ่านแล้วดูเป็นธรรมชาติ เหมาะกับการเผยแพร่ต่อสาธารณะ เช่น บทความ หรือโพสต์บนโซเชียลมีเดีย
+
+                - หลีกเลี่ยงการใช้ภาษาที่ยากหรือเป็นทางการเกินไป
+                - สามารถจัดกลุ่มข้อมูลหรือเขียนใหม่ให้เข้าใจง่ายขึ้นได้โดยคัดเฉพาะชื่อความฝันที่เกี่ยวข้องกับความฝันนี้ '{request.dream}'
+                - ไม่ต้องแสดงสัตว์อื่นๆ ในฝันที่ไม่เกี่ยวข้อง
+                - ไม่จำเป็นต้องแปลตรงตัว แต่ให้คงสาระสำคัญไว้
+                - เน้นการสื่อสารที่เป็นเชิงบวก อบอุ่น และน่าเชื่อถือ
+
+                ข้อมูลความฝันที่ได้รับอยู่ด้านล่าง:
+                {interpretations}
+                และหาก {countData} ไม่ใช่ 1 ให้ถามเพื่อเพิ่มรายละเอียดของความฝันเพิ่มเติม
+        """
+
 
     client = genai.Client(api_key="AIzaSyCNKZqGKhFA9QsIEpl8pMT582TAkAHSB7M")
     response = client.models.generate_content_stream(
         model="gemini-2.0-flash",
         config=types.GenerateContentConfig(
-            system_instruction=f"""ช่วยแก้ไขคำภาษาไทยในถูกต้อง {request.dream} แล้วแสดงแค่ข้อความที่ถูกปรับใหม่เท่านั้น"""
+            system_instruction=promptText
         ),
-        contents = ["คุณคือผู้ช่วยที่เชี่ยวชาญในการแก้คำผิดในภาษาไทย"]
-        # ["กรุณาเรียบเรียงข้อมูลข้างต้นให้อ่านง่ายและน่าสนใจสำหรับผู้อ่านทั่วไป"]
+        contents = ["กรุณาเรียบเรียงข้อมูลข้างต้นให้อ่านง่ายและน่าสนใจสำหรับผู้อ่านทั่วไป"]
     )
-
+    result = ""
     def event_stream():
-        result = ''
         for chunk in response:
             if chunk.text:
-                result+=chunk.text
-                # yield f"{chunk.text}"
-        return result
-
-    dreamText = event_stream()
-
-    return dreamText
-
-    #
-    # cursor = connection.cursor()
-    # cursor.execute("SELECT current_date()")
-    # rows = cursor.fetchall()
-    # connection.close()
-    #
-    # # คืนค่าคำ keyword ทั้งหมดในรูปแบบ list
-    # return [row[0] for row in rows if row[0]]
-
-    # return StreamingResponse(event_stream(),media_type="text/event-stream")
-
-    # async with httpx.AsyncClient() as client:
-    #     api_response = await client.get(
-    #         "https://stg-admin-api-gateway.mutoday.com/api/v1/form/dream",
-    #         params={"dream": request.dream},
-    #         headers={"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ODFiMjU1MGQyZGYwMDM3YTQ5NDNlOTgiLCJleHAiOjE3NzgxNDU1NjYsInVzZXJJZCI6IjY4MWIyNTUwZDJkZjAwMzdhNDk0M2U5OCIsImlzQWRtaW4iOmZhbHNlfQ.IdEDUVVp8wfHtzUvlPJZaTtJmNnSaLMOXARUW6tJsZo"}
-    #     )
-    #
-    # raw_data = api_response.json().get("data", [])
-    # filtered_data = []
-    # countData = 0
-    # promptText = ""
-    # for item in raw_data:
-    #     name = item.get("name", "").strip()
-    #     if is_similar(request.dream, name):
-    #         filtered_data.append(item)
-    #         ++countData
-    #
-    # # สร้างข้อความสำหรับ prompt
-    # interpretations = ""
-    # for item in filtered_data:
-    #     name = item.get("name", "").strip()
-    #     description = item.get("description", "").strip()
-    #     number = item.get("number", "").strip()
-    #     interpretations += f"\n\nชื่อความฝัน: {name}\nคำอธิบาย: {description}\nเลขนำโชค: {number}"
-    #
-    #
-    # if not interpretations:
-    #     promptText = f"""
-    #             คุณคือนักเขียนที่มีความสามารถในการปรับข้อความให้น่าอ่าน เป็นกันเอง และสื่อสารอย่างเข้าใจง่าย
-    #             กรุณานำข้อมูลเกี่ยวกับความฝันด้านล่างนี้มาช่วยเรียบเรียงใหม่ให้อ่านแล้วดูเป็นธรรมชาติ เหมาะกับการเผยแพร่ต่อสาธารณะ เช่น บทความ หรือโพสต์บนโซเชียลมีเดีย
-    #
-    #             - หลีกเลี่ยงการใช้ภาษาที่ยากหรือเป็นทางการเกินไป
-    #             - ช่่วยตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย
-    #             - แสดงเลขนำโชคที่เกี่ยวข้อง
-    #             - เน้นการสื่อสารที่เป็นเชิงบวก อบอุ่น และน่าเชื่อถือ
-    #             - แต่ละหัวข้อความฝันควรถูกแยกเป็นรายการ (เช่น "ฝันเห็นงูบินได้" → งู, บิน)
-    #             - ให้ทำนายโดยแยกหัวข้อตามรายการของแต่ละหัวข้อที่ถูกแยก
-    #             - ส่งคืนคำตอบในรูปแบบ JSON เท่านั้น โดยใช้โครงสร้างดังนี้:
-    #             [
-    #               {{
-    #                 "หัวข้อความฝัน": "<สรุปสั้นๆ เช่น 'งูบินได้'>",
-    #                 "คีย์เวิร์ด": ["<งู>", "<บิน>"],
-    #                 "คำทำนาย": "<ตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย คำทำนายที่สื่อสารเชิงบวก เข้าใจง่าย>",
-    #                 "เลขนำโชค": ["<เลข1>", "<เลข2>", "..."]
-    #               }},
-    #               ...
-    #             ]
-    #
-    #             ข้อมูลความฝันที่ได้รับอยู่ด้านล่าง:
-    #             {request.dream}
-    #
-    #     """
-    # else:
-    #     promptText = f"""
-    #             คุณคือนักเขียนที่มีความสามารถในการปรับข้อความให้น่าอ่าน เป็นกันเอง และสื่อสารอย่างเข้าใจง่าย
-    #             กรุณานำข้อมูลเกี่ยวกับความฝันด้านล่างนี้มาช่วยเรียบเรียงใหม่ให้อ่านแล้วดูเป็นธรรมชาติ เหมาะกับการเผยแพร่ต่อสาธารณะ เช่น บทความ หรือโพสต์บนโซเชียลมีเดีย
-    #
-    #             - หลีกเลี่ยงการใช้ภาษาที่ยากหรือเป็นทางการเกินไป
-    #             - ช่่วยตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย
-    #             - แสดงเลขนำโชคที่เกี่ยวข้อง
-    #             - เน้นการสื่อสารที่เป็นเชิงบวก อบอุ่น และน่าเชื่อถือ
-    #             - แต่ละหัวข้อความฝันควรถูกแยกเป็นรายการ (เช่น "ฝันเห็นงูบินได้" → งู, บิน)
-    #             - ให้ทำนายโดยแยกหัวข้อตามรายการของแต่ละหัวข้อที่ถูกแยก
-    #             - ส่งคืนคำตอบในรูปแบบ JSON เท่านั้น โดยใช้โครงสร้างดังนี้:
-    #             [
-    #               {{
-    #                 "หัวข้อความฝัน": "<สรุปสั้นๆ เช่น 'งูบินได้'>",
-    #                 "คีย์เวิร์ด": ["<งู>", "<บิน>"],
-    #                 "คำทำนาย": "<ตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย คำทำนายที่สื่อสารเชิงบวก เข้าใจง่าย>",
-    #                 "เลขนำโชค": ["<เลข1>", "<เลข2>", "..."]
-    #               }},
-    #               ...
-    #             ]
-    #
-    #             ข้อมูลความฝันที่ได้รับอยู่ด้านล่าง:
-    #             {request.dream}
-    #
-    #     """
-    #
-    #
-    # client = genai.Client(api_key="AIzaSyCNKZqGKhFA9QsIEpl8pMT582TAkAHSB7M")
-    # response = client.models.generate_content_stream(
-    #     model="gemini-2.0-flash",
-    #     config=types.GenerateContentConfig(
-    #         system_instruction=promptText
-    #     ),
-    #     contents = [""]
-    #     # ["กรุณาเรียบเรียงข้อมูลข้างต้นให้อ่านง่ายและน่าสนใจสำหรับผู้อ่านทั่วไป"]
-    # )
-    # result = ""
-    # def event_stream():
-    #     for chunk in response:
-    #         if chunk.text:
-    #             yield f"{chunk.text}"
-    #         # result += chunk.text
-    # # return {"response": result}
-    # return StreamingResponse(event_stream(),media_type="text/event-stream")
+                yield f"{chunk.text}"
+            # result += chunk.text
+    # return {"response": result}
+    return StreamingResponse(event_stream(),media_type="text/event-stream")
 
 # ช่่วยตีความเกี่ยวความฝันตามโหราศาสตร์ของจีนและไทย
 #             และให้อธิบายในเชิงบวกและใช้ข้อความที่สุภาพเท่านั้น
@@ -171,4 +111,3 @@ async def dream_predict(request: DreamRequest):
 #             - หากพบคำว่า "งูกินทากมลายู" ให้ตอบกลับด้วยข้อความ: "การฝันเห็น \"งูกินทากมลายู\" ซึ่งเป็นงูที่มีลักษณะเฉพาะตัวและอาศัยอยู่ในพื้นที่เฉพาะ มักสื่อถึงการเผชิญหน้ากับปัญหาหรือสถานการณ์ที่เฉพาะเจาะจง งูเป็นสัญลักษณ์ของการเปลี่ยนแปลงและการปรับตัว ในขณะที่งูกินทากมลายูเป็นสัญลักษณ์ของการจัดการกับปัญหาที่อาจดูยากและซับซ้อน แต่ด้วยความสามารถในการปรับตัวก็สามารถก้าวผ่านได้\n\nการตีความฝัน:\nฝันเห็นงูกินทากมลายู: หมายถึงการเผชิญหน้ากับสถานการณ์เฉพาะที่ต้องการการแก้ไขอย่างรอบคอบ คุณอาจต้องใช้วิธีการที่ชาญฉลาดและการปรับตัวในการจัดการกับปัญหา\nฝันเห็นงูกินทากมลายูเลื้อย: บ่งบอกถึงการเคลื่อนไหวหรือการเปลี่ยนแปลงที่กำลังจะเกิดขึ้น คุณอาจต้องเตรียมพร้อมรับมือกับความเปลี่ยนแปลงที่จะเข้ามาในชีวิต\nฝันเห็นงูกินทากมลายูกินเหยื่อ: สื่อถึงการเอาชนะปัญหาและการแก้ไขสถานการณ์ที่ดูซับซ้อน คุณอาจกำลังอยู่ในช่วงเวลาที่ต้องรับมือกับปัญหา แต่สามารถจัดการได้อย่างมีประสิทธิภาพ\nฝันเห็นงูกินทากมลายูหลายตัว: หมายถึงการเผชิญหน้ากับหลาย ๆ ปัญหาในเวลาเดียวกัน คุณอาจรู้สึกถึงความกดดันจากหลายด้าน แต่ด้วยการจัดการอย่างดี คุณจะสามารถผ่านพ้นอุปสรรคเหล่านั้นไปได้\nฝันเห็นงูกินทากมลายูตาย: บ่งบอกถึงการสิ้นสุดของปัญหาหรือการเผชิญหน้ากับความกังวลที่เคยมี คุณอาจจะพบกับความโล่งใจและความสงบสุขหลังจากที่สามารถจัดการกับสถานการณ์ได้สำเร็จ"
 #             - หากพบคำว่า "งูกินทากสีน้ำตาล" ให้ตอบกลับด้วยข้อความ: "การฝันเห็น \"งูกินทากสีน้ำตาล\" มักสื่อถึงการเผชิญหน้ากับปัญหาหรืออุปสรรคในชีวิตที่อาจเกี่ยวข้องกับสิ่งที่ดูธรรมดาหรือเป็นส่วนหนึ่งของชีวิตประจำวัน งูสีน้ำตาลสื่อถึงความมั่นคง ความปลอดภัย แต่ก็อาจหมายถึงสิ่งที่ซ่อนอยู่หรือปัญหาที่ต้องใช้ความระมัดระวังและการจัดการอย่างรอบคอบ\n\nการตีความฝัน:\nฝันเห็นงูกินทากสีน้ำตาล: หมายถึงปัญหาหรือสถานการณ์ที่เกี่ยวข้องกับชีวิตประจำวัน คุณอาจกำลังเผชิญหน้ากับเรื่องที่ดูไม่ซับซ้อน แต่ต้องใช้ความระมัดระวังในการจัดการ\nฝันเห็นงูกินทากสีน้ำตาลเลื้อย: สื่อถึงการเคลื่อนไหวหรือความเปลี่ยนแปลงที่กำลังเกิดขึ้นในชีวิต คุณอาจต้องปรับตัวกับสถานการณ์ใหม่ที่เกี่ยวข้องกับเรื่องงานหรือความสัมพันธ์\nฝันเห็นงูกินทากสีน้ำตาลกินเหยื่อ: หมายถึงการแก้ไขปัญหาที่สำคัญในชีวิต คุณอาจสามารถจัดการกับปัญหาที่คาดไม่ถึงได้อย่างมีประสิทธิภาพ\nฝันเห็นงูกินทากสีน้ำตาลหลายตัว: บ่งบอกถึงความท้าทายหลายด้านในชีวิต คุณอาจรู้สึกว่ามีหลายสิ่งที่ต้องจัดการพร้อมกัน แต่ด้วยการวางแผนและการจัดการที่ดี คุณจะสามารถผ่านพ้นปัญหาเหล่านั้นได้\nฝันเห็นงูกินทากสีน้ำตาลตาย: บ่งบอกถึงการสิ้นสุดของปัญหาหรือความกังวลในชีวิตประจำวัน คุณอาจจะพบกับความโล่งใจและความสงบสุขหลังจากที่สามารถแก้ไขปัญหานั้นได้"
 #             หากไม่มีคำที่ตรงกับหัวข้อด้านบน ให้พยายามตีความความฝันโดยอิงจากเนื้อหาที่ผู้ใช้ป้อน
-
