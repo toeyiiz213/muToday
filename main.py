@@ -60,7 +60,7 @@ async def dream_predict(request: DreamRequest):
     connection = databricks.sql.connect(
         server_hostname="886789292378781.1.gcp.databricks.com",
         http_path="/sql/1.0/warehouses/9a6582c8c1fe8f71",
-        access_token="dapie20a5689668815dc5b6f60ff21dcf233"
+        access_token=""
     )
 
     try:
