@@ -49,34 +49,34 @@ async def dream_predict(request: DreamRequest):
 
     dreamText = event_stream()
 
-    # return dreamText
+    return dreamText
 
     # acc = 'dapideaba78614065a0d648dfc2bf4185f0e'
 
-    connection = sql.connect(
-        server_hostname = "886789292378781.1.gcp.databricks.com",
-        http_path       = "/sql/1.0/warehouses/9a6582c8c1fe8f71",
-        access_token    = ''
-    )
-
-    try:
-        cursor = connection.cursor()
-        cursor.execute("SELECT current_date()")
-        query_result = cursor.fetchall()
-        # แปลงผลลัพธ์เป็น list ของ string
-        query_result_str = [str(row) for row in query_result]
-
-        return {
-            "corrected_dream": result_text,
-            "databricks_query_result": query_result_str
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
-
-    finally:
-        cursor.close()
-        connection.close()
+    # connection = sql.connect(
+    #     server_hostname = "886789292378781.1.gcp.databricks.com",
+    #     http_path       = "/sql/1.0/warehouses/9a6582c8c1fe8f71",
+    #     access_token    = 'dapideaba78614065a0d648dfc2bf4185f0e'
+    # )
+    #
+    # try:
+    #     cursor = connection.cursor()
+    #     cursor.execute("SELECT current_date()")
+    #     query_result = cursor.fetchall()
+    #     # แปลงผลลัพธ์เป็น list ของ string
+    #     query_result_str = [str(row) for row in query_result]
+    #
+    #     return {
+    #         "corrected_dream": result_text,
+    #         "databricks_query_result": query_result_str
+    #     }
+    #
+    # except Exception as e:
+    #     return {"error": str(e)}
+    #
+    # finally:
+    #     cursor.close()
+    #     connection.close()
     #
     # cursor = connection.cursor()
     # cursor.execute("SELECT current_date()")
