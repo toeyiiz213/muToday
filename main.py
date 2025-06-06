@@ -51,12 +51,12 @@ async def dream_predict(request: DreamRequest):
 
     # return dreamText
 
-    acc = 'dapideaba78614065a0d648dfc2bf4185f0e'
+    # acc = 'dapideaba78614065a0d648dfc2bf4185f0e'
 
     connection = sql.connect(
         server_hostname = "886789292378781.1.gcp.databricks.com",
         http_path       = "/sql/1.0/warehouses/9a6582c8c1fe8f71",
-        access_token    = acc
+        access_token    = ''
     )
 
     try:
