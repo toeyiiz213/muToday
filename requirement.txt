@@ -7,3 +7,4 @@ databricks-sql-connector
 databricks-connect
 databricks-sdk
 pyarrow
+JayDeBeApi
