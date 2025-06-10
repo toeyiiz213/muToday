@@ -27,7 +27,9 @@ def get_connection():
         f"jdbc:databricks://{JDBC_HOST}:{JDBC_PORT}/"
         f"default;transportMode=http;ssl=1;httpPath={HTTP_PATH};AuthMech=3;PWD={TOKEN};UID=token"
     )
-    driver_path = "/Users/wisithempornwisarn/PycharmProjects/muToday/DatabricksJDBC42-2.6.34.1058 2/DatabricksJDBC42.jar"
+    # driver_path = "/Users/wisithempornwisarn/PycharmProjects/muToday/DatabricksJDBC42-2.6.34.1058 2/DatabricksJDBC42.jar"
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    driver_path = os.path.join(current_dir, 'DatabricksJDBC42-2.6.34.1058 2/DatabricksJDBC42.jar')
 
     conn = jaydebeapi.connect(
         "com.databricks.client.jdbc.Driver",  # JDBC driver class name
