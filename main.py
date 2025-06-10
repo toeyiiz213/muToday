@@ -7,20 +7,21 @@ import difflib
 import httpx
 import jaydebeapi
 import os
+from dotenv import load_dotenv
 import random
 from datetime import datetime
 
-
+load_dotenv()
 app = FastAPI(
     title="Dream Predict",
     description="ทำนายฝัน Gemini",
     version="1.0"
 )
 
-JDBC_HOST = "886789292378781.1.gcp.databricks.com"
-HTTP_PATH = "/sql/1.0/warehouses/9a6582c8c1fe8f71"
-TOKEN = "dapie20a5689668815dc5b6f60ff21dcf233"
-JDBC_PORT = 443
+JDBC_HOST = os.getenv('JDBC_HOST',"")
+HTTP_PATH = os.getenv('HTTP_PATH',"")
+TOKEN = os.getenv('TOKEN',"")
+JDBC_PORT = os.getenv('JDBC_PORT',"")
 
 def get_connection():
     jdbc_url = (

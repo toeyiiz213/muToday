@@ -8,3 +8,4 @@ databricks-connect
 databricks-sdk
 pyarrow
 JayDeBeApi
+dotenv
