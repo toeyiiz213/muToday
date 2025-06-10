@@ -33,6 +33,8 @@ COPY --from=base /app/exported_env.yaml .
 
 # Recreate environment from exported YAML
 RUN conda env create -f exported_env.yaml
+RUN rm -f /opt/conda/envs/myenv/bin/java && \
+    ln -s /usr/lib/jvm/java-17-openjdk-amd64/bin/java /opt/conda/envs/myenv/bin/java
 
 # Install system Java
 RUN apt-get update && \
