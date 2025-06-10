@@ -1,0 +1,49 @@
+# syntax=docker/dockerfile:1
+
+FROM continuumio/miniconda3 AS build
+
+WORKDIR /app
+
+# Copy environment file and source
+COPY env.yaml .
+COPY main.py .
+
+# Install Java (OpenJDK 17) for JayDeBeApi
+RUN apt-get update && apt-get install -y openjdk-17-jdk
+
+# Create Conda environment
+RUN conda env create -f env.yaml
+
+# Ensure conda is initialized and accessible
+SHELL ["conda", "run", "-n", "myenv", "/bin/bash", "-c"]
+
+# Optional: force reinstall numpy
+RUN conda run -n myenv pip install numpy --force-reinstall
+
+# Clean up Conda and APT cache
+RUN conda clean -a && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+FROM continuumio/miniconda3
+
+WORKDIR /app
+
+# Install Java in final container
+RUN apt-get update && apt-get install -y openjdk-17-jdk && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the whole environment from build
+COPY --from=build /opt/conda /opt/conda
+COPY main.py .
+COPY DatabricksJDBC42-2.6.34.1058_2/DatabricksJDBC42.jar .
+COPY .env .
+
+# Set environment variables
+ENV PATH=/opt/conda/envs/myenv/bin:$PATH
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH=$JAVA_HOME/bin:$PATH
+
+# Run FastAPI app using Uvicorn
+CMD ["conda", "run", "--no-capture-output", "-n", "myenv", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000"]
